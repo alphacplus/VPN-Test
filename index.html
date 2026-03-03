@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Alpha C Plus VPN Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-900 text-gray-100 p-8">
+    <div class="max-w-4xl mx-auto">
+        <header class="mb-8 border-b border-gray-700 pb-4">
+            <h1 class="text-3xl font-bold text-blue-400">VPN Master Control</h1>
+            <p class="text-gray-400 mt-2">Alpha C Plus - Stateless VPN Management</p>
+        </header>
+
+        <div class="bg-gray-800 rounded-lg shadow-xl overflow-hidden">
+            <table class="w-full text-left">
+                <thead class="bg-gray-700 text-gray-300 uppercase text-xs font-semibold">
+                    <tr>
+                        <th class="px-6 py-4">User ID</th>
+                        <th class="px-6 py-4">Client IP</th>
+                        <th class="px-6 py-4 text-right">Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="user-list" class="divide-y divide-gray-700">
+                    </tbody>
+            </table>
+        </div>
+    </div>
+
+    <script>
+        const API_URL = '/api/users';
+        const VPS_IP = '165.22.50.111'; // IP ของคุณนัท [cite: 2026-03-03]
+        const AUTH_TOKEN = 'AlphaCPlus_Secure_Token_2026'; // [cite: 2026-03-04]
+
+        async function fetchUsers() {
+            try {
+                const response = await fetch(API_URL, {
+                    headers: { 'X-Alpha-Token': AUTH_TOKEN }
+                });
+                const users = await response.json();
+                const container = document.getElementById('user-list');
+                
+                container.innerHTML = users.map(user => `
+                    <tr class="hover:bg-gray-750 transition-colors">
+                        <td class="px-6 py-4 font-mono font-medium">${user.id}</td>
+                        <td class="px-6 py-4 text-gray-400 font-mono">${user.ip}</td>
+                        <td class="px-6 py-4 text-right">
+                            <button onclick="copyLink('${user.id}')" 
+                                class="bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded text-sm font-semibold transition">
+                                Copy Config Link
+                            </button>
+                        </td>
+                    </tr>
+                `).join('');
+            } catch (err) {
+                console.error('Failed to load users:', err);
+            }
+        }
+
+        function copyLink(id) {
+            const link = `http://${VPS_IP}:8080/download?id=${id}`; // [cite: 2026-03-03]
+            navigator.clipboard.writeText(link);
+            alert(`Copied link for ${id}`);
+        }
+
+        fetchUsers();
+    </script>
+</body>
+</html>
