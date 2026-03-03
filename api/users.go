@@ -11,18 +11,22 @@ type User struct {
 }
 
 func Handler(w http.ResponseWriter, r *http.Request) {
-	// Security Check [cite: 2026-03-03]
-	if r.Header.Get("X-Alpha-Token") != "AlphaCPlus_Secure_Token_2026" {
+	// 1. Simple Security: เช็ค Token จาก Header [cite: 2026-03-03]
+	authToken := r.Header.Get("X-Alpha-Token")
+	if authToken != "AlphaCPlus_Secure_Token_2026" {
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
 
-	// รายชื่อ User 50 คน (ตัวอย่างเบื้องต้น)
+	// 2. ข้อมูล User (ในเฟสแรกเราอาจจะเก็บเป็น Slice ไปก่อน)
+	// ในอนาคตคุณนัทสามารถเชื่อมต่อกับ MongoDB หรือ PostgreSQL บน Cloud ได้ครับ
 	users := []User{
 		{ID: "natt_01", IP: "10.8.0.2"},
 		{ID: "staff_01", IP: "10.8.0.3"},
+		{ID: "dev_node_01", IP: "10.8.0.4"},
 	}
 
+	// 3. พ่น JSON ออกไป
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(users)
 }
