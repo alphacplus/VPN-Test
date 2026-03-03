@@ -13,7 +13,7 @@ type User struct {
 func Handler(w http.ResponseWriter, r *http.Request) {
 	// 1. Simple Security: เช็ค Token จาก Header [cite: 2026-03-03]
 	authToken := r.Header.Get("X-Alpha-Token")
-	if authToken != "AlphaCPlus_Secret_2026" {
+	if authToken != "AlphaCPlus_Secure_Token_2026" {
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
