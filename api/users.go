@@ -6,6 +6,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"log"
 	"net/http"
 	"os"
 	"strings"
@@ -40,7 +41,7 @@ func getDB() (*sql.DB, error) {
 		db = nil
 	}
 
-	dsn := strings.TrimSpace(os.Getenv("DATABASE_URL"))
+	dsn := dbURLFromEnv()
 	if dsn == "" {
 		return nil, errors.New("DATABASE_URL is not set")
 	}
@@ -59,6 +60,7 @@ func getDB() (*sql.DB, error) {
 	defer cancel()
 	if err := conn.PingContext(ctx); err != nil {
 		_ = conn.Close()
+		log.Printf("db ping failed: %v", err)
 		return nil, err
 	}
 
@@ -79,6 +81,7 @@ func Handler(w http.ResponseWriter, r *http.Request) {
 
 	conn, err := getDB()
 	if err != nil {
+		log.Printf("users getDB failed: %v", err)
 		http.Error(w, "Database unavailable", http.StatusInternalServerError)
 		return
 	}
@@ -93,6 +96,7 @@ func Handler(w http.ResponseWriter, r *http.Request) {
 		ORDER BY name
 	`)
 	if err != nil {
+		log.Printf("users query failed: %v", err)
 		http.Error(w, "Query failed", http.StatusInternalServerError)
 		return
 	}
@@ -109,6 +113,7 @@ func Handler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := rows.Err(); err != nil {
+		log.Printf("users rows iteration failed: %v", err)
 		http.Error(w, "Result iteration failed", http.StatusInternalServerError)
 		return
 	}
@@ -160,4 +165,15 @@ func validateJWTFromRequest(r *http.Request) (jwt.MapClaims, error) {
 		return nil, errors.New("invalid claims")
 	}
 	return claims, nil
+}
+
+func dbURLFromEnv() string {
+	if v := strings.TrimSpace(os.Getenv("DATABASE_URL")); v != "" {
+		return v
+	}
+	// Optional fallback for platforms that expose Postgres via this key.
+	if v := strings.TrimSpace(os.Getenv("POSTGRES_URL")); v != "" {
+		return v
+	}
+	return ""
 }
