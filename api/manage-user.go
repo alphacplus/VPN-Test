@@ -9,9 +9,10 @@ import (
 )
 
 type manageUserRequest struct {
-	Action string `json:"action"`
-	ID     string `json:"id"`
-	IP     string `json:"ip"`
+	Action  string `json:"action"`
+	ID      string `json:"id"`
+	IP      string `json:"ip"`
+	GroupID string `json:"group_id"`
 }
 
 type manageUserResponse struct {
@@ -61,10 +62,16 @@ func ManageUserHandler(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "ip is required for add action", http.StatusBadRequest)
 			return
 		}
+		
+		var groupID interface{} = nil
+		if req.GroupID != "" {
+			groupID = req.GroupID
+		}
+		
 		_, err = conn.ExecContext(ctx, `
-			INSERT INTO public.vpn_users (name, ip_address, is_active)
-			VALUES ($1, $2, true)
-		`, req.ID, req.IP)
+			INSERT INTO public.vpn_users (name, ip_address, group_id, is_active)
+			VALUES ($1, $2, $3::uuid, true)
+		`, req.ID, req.IP, groupID)
 		if err != nil {
 			http.Error(w, "Failed to add user", http.StatusInternalServerError)
 			return
@@ -78,6 +85,32 @@ func ManageUserHandler(w http.ResponseWriter, r *http.Request) {
 		`, req.ID)
 		if execErr != nil {
 			http.Error(w, "Failed to ban user", http.StatusInternalServerError)
+			return
+		}
+		affected, affErr := result.RowsAffected()
+		if affErr != nil || affected == 0 {
+			http.Error(w, "User not found", http.StatusNotFound)
+			return
+		}
+	
+	case "update-group":
+		if req.ID == "" {
+			http.Error(w, "id is required for update-group action", http.StatusBadRequest)
+			return
+		}
+		
+		var groupID interface{} = nil
+		if req.GroupID != "" {
+			groupID = req.GroupID
+		}
+		
+		result, execErr := conn.ExecContext(ctx, `
+			UPDATE public.vpn_users
+			SET group_id = $1::uuid, updated_at = NOW()
+			WHERE name = $2 AND is_active = true
+		`, groupID, req.ID)
+		if execErr != nil {
+			http.Error(w, "Failed to update user group", http.StatusInternalServerError)
 			return
 		}
 		affected, affErr := result.RowsAffected()

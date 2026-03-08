@@ -18,8 +18,11 @@ import (
 )
 
 type User struct {
-	ID string `json:"id"`
-	IP string `json:"ip"`
+	ID         string `json:"id"`
+	IP         string `json:"ip"`
+	GroupID    string `json:"group_id,omitempty"`
+	GroupName  string `json:"group_name,omitempty"`
+	ServerName string `json:"server_name,omitempty"`
 }
 
 var (
@@ -90,10 +93,17 @@ func Handler(w http.ResponseWriter, r *http.Request) {
 	defer cancel()
 
 	rows, err := conn.QueryContext(ctx, `
-		SELECT name, ip_address
-		FROM public.vpn_users
-		WHERE is_active = true
-		ORDER BY name
+		SELECT 
+			u.name, 
+			u.ip_address,
+			COALESCE(u.group_id::text, ''),
+			COALESCE(g.name, ''),
+			COALESCE(s.name, '')
+		FROM public.vpn_users u
+		LEFT JOIN public.vpn_groups g ON u.group_id = g.id
+		LEFT JOIN public.vpn_servers s ON g.server_id = s.id
+		WHERE u.is_active = true
+		ORDER BY u.name
 	`)
 	if err != nil {
 		log.Printf("users query failed: %v", err)
@@ -105,7 +115,7 @@ func Handler(w http.ResponseWriter, r *http.Request) {
 	users := make([]User, 0)
 	for rows.Next() {
 		var u User
-		if err := rows.Scan(&u.ID, &u.IP); err != nil {
+		if err := rows.Scan(&u.ID, &u.IP, &u.GroupID, &u.GroupName, &u.ServerName); err != nil {
 			http.Error(w, "Failed to parse result", http.StatusInternalServerError)
 			return
 		}
