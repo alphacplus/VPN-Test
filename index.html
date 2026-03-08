@@ -101,6 +101,34 @@
 
             <!-- Users Tab -->
             <div v-if="activeTab === 'users'">
+                <div class="grid gap-3 rounded-2xl border border-slate-700/70 bg-slate-900/70 p-4 shadow-xl backdrop-blur sm:grid-cols-4 mb-4">
+                    <input
+                        v-model.trim="userFilters.q"
+                        @input="onUserSearchInput"
+                        type="text"
+                        placeholder="Search user/ip/group/server..."
+                        class="rounded-lg border border-slate-700 bg-slate-950/70 px-3 py-2 outline-none focus:border-brand-300 focus:ring-2 focus:ring-brand-300/30 sm:col-span-2"
+                    >
+                    <select
+                        v-model="userFilters.group_id"
+                        @change="fetchUsers"
+                        class="rounded-lg border border-slate-700 bg-slate-950/70 px-3 py-2 outline-none focus:border-brand-300 focus:ring-2 focus:ring-brand-300/30"
+                    >
+                        <option value="">All Groups</option>
+                        <option v-for="g in groups" :key="g.id" :value="g.id">{{ g.name }}</option>
+                    </select>
+                    <select
+                        v-model.number="userFilters.limit"
+                        @change="fetchUsers"
+                        class="rounded-lg border border-slate-700 bg-slate-950/70 px-3 py-2 outline-none focus:border-brand-300 focus:ring-2 focus:ring-brand-300/30"
+                    >
+                        <option :value="50">50</option>
+                        <option :value="100">100</option>
+                        <option :value="200">200</option>
+                        <option :value="500">500</option>
+                    </select>
+                </div>
+
                 <form class="grid gap-3 rounded-2xl border border-slate-700/70 bg-slate-900/70 p-5 shadow-xl backdrop-blur sm:grid-cols-5 mb-6" @submit.prevent="addUser">
                     <input v-model.trim="addUserForm.id" type="text" required placeholder="User ID" class="rounded-lg border border-slate-700 bg-slate-950/70 px-3 py-2 outline-none focus:border-brand-300 focus:ring-2 focus:ring-brand-300/30">
                     <input v-model.trim="addUserForm.ip" type="text" required placeholder="10.8.0.x" class="rounded-lg border border-slate-700 bg-slate-950/70 px-3 py-2 outline-none focus:border-brand-300 focus:ring-2 focus:ring-brand-300/30">
@@ -124,10 +152,10 @@
                                 </tr>
                             </thead>
                             <tbody>
-                                <tr v-if="users.length === 0">
+                                <tr v-if="filteredUsers.length === 0">
                                     <td colspan="5" class="px-4 py-6 text-center text-slate-400">No active users.</td>
                                 </tr>
-                                <tr v-for="user in users" :key="user.id" class="border-b border-slate-800/80 last:border-b-0">
+                                <tr v-for="user in filteredUsers" :key="user.id" class="border-b border-slate-800/80 last:border-b-0">
                                     <td class="px-4 py-3 font-semibold text-brand-300">{{ user.id }}</td>
                                     <td class="px-4 py-3 font-mono text-slate-300">{{ user.ip }}</td>
                                     <td class="px-4 py-3 text-slate-400">
@@ -375,6 +403,8 @@
                     modalData: {},
                     loginForm: { username: '', password: '', otp: '' },
                     addUserForm: { id: '', ip: '', group_id: '' },
+                    userFilters: { q: '', group_id: '', limit: 200 },
+                    userSearchTimer: null,
                     addGroupForm: { name: '', description: '', server_id: '' },
                     addServerForm: { name: '', host: '', port: 1194, protocol: 'udp', location: '', max_users: 100 },
                     notice: { message: '', type: 'success' },
@@ -384,6 +414,25 @@
             computed: {
                 isAuthenticated() {
                     return !!this.token;
+                },
+                filteredUsers() {
+                    const q = (this.userFilters.q || '').toLowerCase();
+                    const groupID = this.userFilters.group_id || '';
+
+                    return (this.users || []).filter((u) => {
+                        if (groupID && (u.group_id || '') !== groupID) {
+                            return false;
+                        }
+
+                        if (!q) {
+                            return true;
+                        }
+
+                        const haystack = [u.id, u.ip, u.group_name, u.server_name]
+                            .map((v) => (v || '').toLowerCase())
+                            .join(' ');
+                        return haystack.includes(q);
+                    });
                 },
             },
             watch: {
@@ -460,7 +509,12 @@
                 async fetchUsers() {
                     if (!this.token) return;
                     try {
-                        const response = await fetch('/api/users', {
+                        const params = new URLSearchParams();
+                        if (this.userFilters.q) params.set('q', this.userFilters.q);
+                        if (this.userFilters.group_id) params.set('group_id', this.userFilters.group_id);
+                        if (this.userFilters.limit) params.set('limit', String(this.userFilters.limit));
+
+                        const response = await fetch(`/api/users?${params.toString()}`, {
                             method: 'GET',
                             headers: this.authHeaders(),
                         });
@@ -474,6 +528,14 @@
                     } catch (err) {
                         this.setNotice(err.message || 'Unable to load users.', 'error');
                     }
+                },
+                onUserSearchInput() {
+                    if (this.userSearchTimer) {
+                        clearTimeout(this.userSearchTimer);
+                    }
+                    this.userSearchTimer = setTimeout(() => {
+                        this.fetchUsers();
+                    }, 300);
                 },
                 async fetchGroups() {
                     if (!this.token) return;

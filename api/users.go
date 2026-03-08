@@ -9,6 +9,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -92,6 +93,21 @@ func Handler(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
 	defer cancel()
 
+	q := strings.TrimSpace(r.URL.Query().Get("q"))
+	groupID := strings.TrimSpace(r.URL.Query().Get("group_id"))
+	limit := 200
+	if rawLimit := strings.TrimSpace(r.URL.Query().Get("limit")); rawLimit != "" {
+		if parsedLimit, parseErr := strconv.Atoi(rawLimit); parseErr == nil {
+			if parsedLimit < 1 {
+				parsedLimit = 1
+			}
+			if parsedLimit > 1000 {
+				parsedLimit = 1000
+			}
+			limit = parsedLimit
+		}
+	}
+
 	rows, err := conn.QueryContext(ctx, `
 		SELECT 
 			u.name, 
@@ -103,8 +119,11 @@ func Handler(w http.ResponseWriter, r *http.Request) {
 		LEFT JOIN public.vpn_groups g ON u.group_id = g.id
 		LEFT JOIN public.vpn_servers s ON g.server_id = s.id
 		WHERE u.is_active = true
+		  AND ($1 = '' OR u.name ILIKE '%' || $1 || '%' OR u.ip_address ILIKE '%' || $1 || '%' OR g.name ILIKE '%' || $1 || '%' OR s.name ILIKE '%' || $1 || '%')
+		  AND ($2 = '' OR u.group_id::text = $2)
 		ORDER BY u.name
-	`)
+		LIMIT $3
+	`, q, groupID, limit)
 	if err != nil {
 		log.Printf("users query failed: %v", err)
 		http.Error(w, "Query failed", http.StatusInternalServerError)
