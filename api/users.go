@@ -23,7 +23,10 @@ func Handler(w http.ResponseWriter, r *http.Request) {
 	users := []User{
 		{ID: "natt_01", IP: "10.8.0.2"},
 		{ID: "staff_01", IP: "10.8.0.3"},
-		{ID: "dev_node_01", IP: "10.8.0.4"},
+		{ID: "kanoon-sb", IP: "10.8.0.4"},
+		{ID: "New2-sb", IP: "10.8.0.5"},
+		{ID: "sai2-sb", IP: "10.8.0.5"},
+		{ID: "Mew_a79", IP: "10.8.0.5"},
 	}
 
 	// 3. พ่น JSON ออกไป
