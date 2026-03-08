@@ -579,7 +579,10 @@
                                 group_id: this.addUserForm.group_id || '',
                             }),
                         });
-                        if (!response.ok) throw new Error('Add user request failed.');
+                        if (!response.ok) {
+                            const detail = (await response.text()).trim();
+                            throw new Error(detail || 'Add user request failed.');
+                        }
                         this.setNotice(`User ${this.addUserForm.id} added.`);
                         this.addUserForm = { id: '', ip: '', group_id: '' };
                         await this.fetchUsers();

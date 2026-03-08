@@ -3,9 +3,12 @@ package handler
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"strings"
 	"time"
+
+	"github.com/lib/pq"
 )
 
 type manageUserRequest struct {
@@ -62,17 +65,43 @@ func ManageUserHandler(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "ip is required for add action", http.StatusBadRequest)
 			return
 		}
-		
+
+		var duplicateField string
+		checkErr := conn.QueryRowContext(ctx, `
+			SELECT CASE
+				WHEN EXISTS (SELECT 1 FROM public.vpn_users WHERE is_active = true AND name = $1) THEN 'id'
+				WHEN EXISTS (SELECT 1 FROM public.vpn_users WHERE is_active = true AND ip_address = $2) THEN 'ip'
+				ELSE ''
+			END
+		`, req.ID, req.IP).Scan(&duplicateField)
+		if checkErr != nil {
+			http.Error(w, "Failed to validate user uniqueness", http.StatusInternalServerError)
+			return
+		}
+		switch duplicateField {
+		case "id":
+			http.Error(w, "User id already exists", http.StatusConflict)
+			return
+		case "ip":
+			http.Error(w, "IP address already exists", http.StatusConflict)
+			return
+		}
+
 		var groupID interface{} = nil
 		if req.GroupID != "" {
 			groupID = req.GroupID
 		}
-		
+
 		_, err = conn.ExecContext(ctx, `
 			INSERT INTO public.vpn_users (name, ip_address, group_id, is_active)
 			VALUES ($1, $2, $3::uuid, true)
 		`, req.ID, req.IP, groupID)
 		if err != nil {
+			var pqErr *pq.Error
+			if errors.As(err, &pqErr) && pqErr.Code == "23505" {
+				http.Error(w, "User id or IP address already exists", http.StatusConflict)
+				return
+			}
 			http.Error(w, "Failed to add user", http.StatusInternalServerError)
 			return
 		}
